@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1e3a8a"/>
+  <g transform="translate(56 56) scale(2)">
+    <path
+      d="M40 130 C40 130 70 145 100 130 C130 145 160 130 160 130 V155 C160 155 130 170 100 155 C70 170 40 155 40 155 V130Z"
+      fill="#F47F0A"
+    />
+    <path d="M100 155 V130" stroke="#ffffff" stroke-width="2"/>
+    <rect x="55" y="90" width="20" height="35" rx="4" fill="#ffffff" opacity="0.6"/>
+    <rect x="85" y="50" width="30" height="75" rx="4" fill="#ffffff"/>
+    <rect x="125" y="70" width="20" height="55" rx="4" fill="#ffffff" opacity="0.8"/>
+    <rect x="75" y="35" width="10" height="10" rx="2" fill="#F47F0A"/>
+    <rect x="120" y="25" width="8" height="8" rx="2" fill="#F47F0A"/>
+    <rect x="100" y="15" width="6" height="6" rx="1" fill="#F47F0A" opacity="0.6"/>
+  </g>
+</svg>

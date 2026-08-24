@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>تعذر الاتصال — AFMS</title>
+    <style>
+      :root {
+        --navy: #1e3a8a;
+        --orange: #f47f0a;
+        --bg: #f8fafc;
+        --text: #0f172a;
+        --muted: #475569;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(440px, 100%);
+        background: #fff;
+        border-radius: 16px;
+        padding: 32px 28px;
+        text-align: center;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e2e8f0;
+      }
+      .mark {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 16px;
+        border-radius: 18px;
+        background: var(--navy);
+        display: grid;
+        place-items: center;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.35rem;
+      }
+      p {
+        margin: 0 0 22px;
+        color: var(--muted);
+        line-height: 1.7;
+        font-size: 0.95rem;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 18px;
+        font-size: 0.95rem;
+        cursor: pointer;
+      }
+      .primary {
+        background: var(--orange);
+        color: #fff;
+        font-weight: 600;
+      }
+      .ghost {
+        background: #e2e8f0;
+        color: var(--navy);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="mark" aria-hidden="true">
+        <svg width="42" height="42" viewBox="0 0 200 200" fill="none">
+          <path d="M40 130 C40 130 70 145 100 130 C130 145 160 130 160 130 V155 C160 155 130 170 100 155 C70 170 40 155 40 155 V130Z" fill="#F47F0A" />
+          <rect x="55" y="90" width="20" height="35" rx="4" fill="#ffffff" opacity="0.6" />
+          <rect x="85" y="50" width="30" height="75" rx="4" fill="#ffffff" />
+          <rect x="125" y="70" width="20" height="55" rx="4" fill="#ffffff" opacity="0.8" />
+        </svg>
+      </div>
+      <h1>تعذر الاتصال بالمنصة</h1>
+      <p>
+        تحقق من اتصال الإنترنت ثم أعد المحاولة.
+        <br />
+        منصة AFMS على
+        <strong>ft-edugate.univ-eloued.dz</strong>
+      </p>
+      <div class="actions">
+        <button class="primary" id="retry" type="button">إعادة المحاولة</button>
+        <button class="ghost" id="quit" type="button">إغلاق</button>
+      </div>
+    </main>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const target = params.get('url') || 'https://ft-edugate.univ-eloued.dz/';
+      document.getElementById('retry').addEventListener('click', () => {
+        location.href = target;
+      });
+      document.getElementById('quit').addEventListener('click', () => {
+        window.close();
+      });
+    </script>
+  </body>
+</html>

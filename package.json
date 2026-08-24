@@ -1,0 +1,69 @@
+{
+  "name": "afms-desktop",
+  "productName": "AFMS",
+  "version": "1.0.0",
+  "description": "AFMS desktop app - web view of https://ft-edugate.univ-eloued.dz/",
+  "author": "University of El Oued - Faculty of Technology",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mfu-service/afms-desktop.git"
+  },
+  "homepage": "https://github.com/mfu-service/afms-desktop#readme",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node scripts/render-icon.mjs",
+    "icon": "node scripts/render-icon.mjs",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "dz.univ-eloued.ft-edugate.desktop",
+    "productName": "AFMS",
+    "copyright": "University of El Oued",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/icon.png",
+      "assets/icon.ico"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AFMS",
+      "unicode": true,
+      "installerLanguages": ["ar_SA", "fr_FR", "en_US"],
+      "language": "1025"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  }
+}
