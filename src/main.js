@@ -4,22 +4,29 @@ const path = require('path');
 const fs = require('fs');
 const {
   app,
-  BrowserWindow,
+  BaseWindow,
   Menu,
   shell,
   dialog,
   session,
   screen,
   nativeImage,
+  ipcMain,
 } = require('electron');
 const { APP_URL, APP_TITLE, ALLOWED_HOST_SUFFIXES } = require('./config');
+const { TabManager } = require('./tabs');
 
 const isDev = !app.isPackaged;
 
 let mainWindow = null;
+let tabManager = null;
 
 function stateFilePath() {
   return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function tabsStatePath() {
+  return path.join(app.getPath('userData'), 'tabs-state.json');
 }
 
 function iconPath() {
@@ -101,14 +108,18 @@ function isAppUrl(url) {
   if (url.startsWith('blob:') || url === 'about:blank') return true;
   if (url.startsWith('file:')) {
     const normalized = decodeURIComponent(url).replace(/\\/g, '/').toLowerCase();
-    return normalized.includes('/src/error.html');
+    return normalized.includes('/src/error.html') || normalized.includes('/src/shell.html');
   }
   return isAllowedHost(hostOf(url));
 }
 
+function isShellEvent(event) {
+  return Boolean(tabManager && event.sender && tabManager.isChrome(event.sender));
+}
+
 function applyNavigationPolicy(contents) {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (isAppUrl(url)) {
+  contents.setWindowOpenHandler(({ url, disposition }) => {
+    if (url === 'about:blank' || url.startsWith('blob:')) {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -124,19 +135,71 @@ function applyNavigationPolicy(contents) {
         },
       };
     }
-    shell.openExternal(url);
+    if (isAppUrl(url)) {
+      tabManager?.createTab(url, { activate: disposition !== 'background-tab' });
+      return { action: 'deny' };
+    }
+    if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 
   contents.on('will-navigate', (event, url) => {
+    if (tabManager?.isChrome(contents)) {
+      const allowedShell =
+        url.startsWith('file:') &&
+        decodeURIComponent(url).replace(/\\/g, '/').toLowerCase().includes('/src/shell.html');
+      if (!allowedShell) event.preventDefault();
+      return;
+    }
     if (!isAppUrl(url)) {
       event.preventDefault();
-      shell.openExternal(url);
+      if (/^https?:/i.test(url)) shell.openExternal(url);
     }
   });
 
   contents.on('will-attach-webview', (event) => {
     event.preventDefault();
+  });
+}
+
+function attachContextMenu(contents) {
+  contents.on('context-menu', (_event, params) => {
+    const history = historyApi(contents);
+    const template = [
+      {
+        label: 'رجوع',
+        enabled: history.canGoBack(),
+        click: () => history.goBack(),
+      },
+      {
+        label: 'تقدم',
+        enabled: history.canGoForward(),
+        click: () => history.goForward(),
+      },
+      { label: 'إعادة تحميل', click: () => contents.reload() },
+      { type: 'separator' },
+      { label: 'قص', role: 'cut', enabled: params.editFlags.canCut },
+      { label: 'نسخ', role: 'copy', enabled: params.editFlags.canCopy },
+      { label: 'لصق', role: 'paste', enabled: params.editFlags.canPaste },
+      { label: 'تحديد الكل', role: 'selectAll' },
+    ];
+
+    if (params.linkURL) {
+      const items = [];
+      if (isAppUrl(params.linkURL) && /^https?:/i.test(params.linkURL)) {
+        items.push({
+          label: 'فتح في تبويب جديد',
+          click: () => tabManager?.createTab(params.linkURL),
+        });
+      }
+      items.push({
+        label: 'فتح الرابط في المتصفح',
+        click: () => shell.openExternal(params.linkURL),
+      });
+      template.unshift(...items, { type: 'separator' });
+    }
+
+    Menu.buildFromTemplate(template).popup({ window: mainWindow });
   });
 }
 
@@ -146,25 +209,36 @@ function createMenu() {
       label: 'ملف',
       submenu: [
         {
+          label: 'تبويب جديد',
+          accelerator: 'CmdOrCtrl+T',
+          click: () => tabManager?.createTab(APP_URL),
+        },
+        {
+          label: 'إغلاق التبويب',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => tabManager?.closeActive(),
+        },
+        { type: 'separator' },
+        {
           label: 'إعادة تحميل',
           accelerator: 'CmdOrCtrl+R',
-          click: () => mainWindow?.webContents.reload(),
+          click: () => tabManager?.reload(),
         },
         {
           label: 'إعادة تحميل إجباري',
           accelerator: 'CmdOrCtrl+Shift+R',
-          click: () => mainWindow?.webContents.reloadIgnoringCache(),
+          click: () => tabManager?.reload(true),
         },
         { type: 'separator' },
         {
           label: 'طباعة…',
           accelerator: 'CmdOrCtrl+P',
-          click: () => mainWindow?.webContents.print(),
+          click: () => tabManager?.activeWebContents()?.print(),
         },
         {
           label: 'فتح في المتصفح',
           click: () => {
-            const url = mainWindow?.webContents.getURL();
+            const url = tabManager?.activeWebContents()?.getURL();
             if (url && /^https?:/i.test(url)) shell.openExternal(url);
           },
         },
@@ -203,24 +277,45 @@ function createMenu() {
         {
           label: 'رجوع',
           accelerator: 'Alt+Left',
-          click: () => {
-            const history = historyApi(mainWindow?.webContents);
-            if (history?.canGoBack()) history.goBack();
-          },
+          click: () => tabManager?.goBack(),
         },
         {
           label: 'تقدم',
           accelerator: 'Alt+Right',
-          click: () => {
-            const history = historyApi(mainWindow?.webContents);
-            if (history?.canGoForward()) history.goForward();
-          },
+          click: () => tabManager?.goForward(),
+        },
+        { type: 'separator' },
+        {
+          label: 'التبويب التالي',
+          accelerator: 'CmdOrCtrl+Tab',
+          click: () => tabManager?.nextTab(),
+        },
+        {
+          label: 'التبويب السابق',
+          accelerator: 'CmdOrCtrl+Shift+Tab',
+          click: () => tabManager?.previousTab(),
         },
         { type: 'separator' },
         {
           label: 'الصفحة الرئيسية',
           accelerator: 'Alt+Home',
-          click: () => mainWindow?.loadURL(APP_URL),
+          click: () => tabManager?.loadActive(APP_URL),
+        },
+        { type: 'separator' },
+        ...[1, 2, 3, 4, 5, 6, 7, 8].map((index) => ({
+          label: `التبويب ${index}`,
+          accelerator: `CmdOrCtrl+${index}`,
+          visible: false,
+          click: () => tabManager?.activateIndex(index - 1),
+        })),
+        {
+          label: 'التبويب الأخير',
+          accelerator: 'CmdOrCtrl+9',
+          visible: false,
+          click: () => {
+            if (!tabManager?.tabs.length) return;
+            tabManager.activateIndex(tabManager.tabs.length - 1);
+          },
         },
       ],
     },
@@ -252,39 +347,21 @@ function createMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function attachContextMenu(win) {
-  win.webContents.on('context-menu', (_event, params) => {
-    const history = historyApi(win.webContents);
-    const template = [
-      {
-        label: 'رجوع',
-        enabled: history.canGoBack(),
-        click: () => history.goBack(),
-      },
-      {
-        label: 'تقدم',
-        enabled: history.canGoForward(),
-        click: () => history.goForward(),
-      },
-      { label: 'إعادة تحميل', click: () => win.webContents.reload() },
-      { type: 'separator' },
-      { label: 'قص', role: 'cut', enabled: params.editFlags.canCut },
-      { label: 'نسخ', role: 'copy', enabled: params.editFlags.canCopy },
-      { label: 'لصق', role: 'paste', enabled: params.editFlags.canPaste },
-      { label: 'تحديد الكل', role: 'selectAll' },
-    ];
-
-    if (params.linkURL) {
-      template.unshift(
-        {
-          label: 'فتح الرابط في المتصفح',
-          click: () => shell.openExternal(params.linkURL),
-        },
-        { type: 'separator' },
-      );
-    }
-
-    Menu.buildFromTemplate(template).popup({ window: win });
+function registerTabIpc() {
+  ipcMain.on('tabs:ready', (event) => {
+    if (isShellEvent(event)) tabManager.sendState();
+  });
+  ipcMain.on('tabs:new', (event) => {
+    if (isShellEvent(event)) tabManager.createTab(APP_URL);
+  });
+  ipcMain.on('tabs:close', (event, id) => {
+    if (isShellEvent(event)) tabManager.closeTab(id);
+  });
+  ipcMain.on('tabs:activate', (event, id) => {
+    if (isShellEvent(event)) tabManager.activate(id);
+  });
+  ipcMain.on('tabs:close-self', (event) => {
+    tabManager?.closeByContents(event.sender);
   });
 }
 
@@ -292,7 +369,7 @@ function createWindow() {
   const state = loadWindowState();
   const icon = iconPath();
 
-  mainWindow = new BrowserWindow({
+  mainWindow = new BaseWindow({
     width: state.width || 1280,
     height: state.height || 800,
     x: state.x,
@@ -303,50 +380,56 @@ function createWindow() {
     backgroundColor: '#0f172a',
     show: false,
     icon,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      spellcheck: true,
-    },
+  });
+
+  tabManager = new TabManager({
+    window: mainWindow,
+    preloadShell: path.join(__dirname, 'preload-shell.js'),
+    preloadTab: path.join(__dirname, 'preload.js'),
+    errorPage: path.join(__dirname, 'error.html'),
+    isAppUrl,
+    stateFile: tabsStatePath(),
+    onTabCreated: attachContextMenu,
   });
 
   if (state.isMaximized) mainWindow.maximize();
 
-  mainWindow.once('ready-to-show', () => {
-    if (!mainWindow) return;
+  let shown = false;
+  const showWindow = () => {
+    if (shown || !mainWindow || mainWindow.isDestroyed()) return;
+    shown = true;
     mainWindow.show();
     mainWindow.focus();
+    tabManager.layout();
+    tabManager.activeWebContents()?.focus();
+  };
+
+  tabManager.chrome.webContents.once('did-finish-load', showWindow);
+  setTimeout(showWindow, 2500);
+
+  const layout = () => tabManager?.layout();
+  mainWindow.on('resize', layout);
+  mainWindow.on('maximize', layout);
+  mainWindow.on('unmaximize', layout);
+  mainWindow.on('enter-full-screen', layout);
+  mainWindow.on('leave-full-screen', layout);
+  mainWindow.on('app-command', (_event, command) => {
+    if (command === 'browser-backward') tabManager?.goBack();
+    if (command === 'browser-forward') tabManager?.goForward();
   });
 
-  mainWindow.on('close', () => saveWindowState(mainWindow));
+  mainWindow.on('close', () => {
+    saveWindowState(mainWindow);
+    tabManager?.saveState();
+  });
   mainWindow.on('closed', () => {
+    tabManager?.destroy();
+    tabManager = null;
     mainWindow = null;
   });
 
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, _desc, _url, isMainFrame) => {
-    if (!isMainFrame || !mainWindow) return;
-    if (errorCode === -3) return;
-    mainWindow.loadFile(path.join(__dirname, 'error.html'), {
-      query: { url: APP_URL },
-    });
-  });
-
-  mainWindow.webContents.on('page-title-updated', (event) => {
-    event.preventDefault();
-    mainWindow?.setTitle(APP_TITLE);
-  });
-
-  mainWindow.webContents.on('did-start-loading', () => {
-    mainWindow?.setProgressBar(2);
-  });
-  mainWindow.webContents.on('did-stop-loading', () => {
-    mainWindow?.setProgressBar(-1);
-  });
-
-  attachContextMenu(mainWindow);
-  mainWindow.loadURL(APP_URL);
+  tabManager.restore(tabManager.loadState());
+  layout();
 }
 
 function registerDownloadHandler() {
@@ -376,6 +459,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     app.setAppUserModelId('dz.univ-eloued.ft-edugate.desktop');
     createMenu();
+    registerTabIpc();
     registerDownloadHandler();
     createWindow();
   });

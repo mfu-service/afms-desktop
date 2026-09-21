@@ -10,8 +10,8 @@ Get the latest build from the public [Releases](https://github.com/mfu-service/a
 
 | File | Use |
 | --- | --- |
-| [AFMS-Setup-1.0.0.exe](https://github.com/mfu-service/afms-desktop/releases/download/v1.0.0/AFMS-Setup-1.0.0.exe) | Installer (Start Menu + desktop shortcut) |
-| [AFMS-Portable-1.0.0.exe](https://github.com/mfu-service/afms-desktop/releases/download/v1.0.0/AFMS-Portable-1.0.0.exe) | Run without installing |
+| [AFMS-Setup-1.1.0.exe](https://github.com/mfu-service/afms-desktop/releases/download/v1.1.0/AFMS-Setup-1.1.0.exe) | Installer (Start Menu + desktop shortcut) |
+| [AFMS-Portable-1.1.0.exe](https://github.com/mfu-service/afms-desktop/releases/download/v1.1.0/AFMS-Portable-1.1.0.exe) | Run without installing |
 
 Windows may show an unknown-publisher warning. Choose **More info** → **Run anyway** if you trust this university build.
 

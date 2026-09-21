@@ -1,7 +1,7 @@
 {
   "name": "afms-desktop",
   "productName": "AFMS",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AFMS desktop app - web view of https://ft-edugate.univ-eloued.dz/",
   "author": "University of El Oued - Faculty of Technology",
   "repository": {

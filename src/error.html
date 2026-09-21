@@ -109,6 +109,10 @@
         location.href = target;
       });
       document.getElementById('quit').addEventListener('click', () => {
+        if (window.afmsDesktop?.closeTab) {
+          window.afmsDesktop.closeTab();
+          return;
+        }
         window.close();
       });
     </script>
